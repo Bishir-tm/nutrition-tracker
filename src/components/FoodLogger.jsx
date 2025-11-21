@@ -1,6 +1,7 @@
 // src/components/FoodLogger.jsx
 import React, { useState } from "react";
 import { Save, Camera, Upload, X } from "lucide-react";
+import Tesseract from "tesseract.js";
 
 const FoodLogger = ({ onFoodAdded }) => {
   const [formData, setFormData] = useState({
@@ -69,58 +70,196 @@ const FoodLogger = ({ onFoodAdded }) => {
       const imageUrl = URL.createObjectURL(file);
       setUploadedImage(imageUrl);
 
-      // In a real implementation, you would call the Gemini API here
-      // For now, we'll use a more realistic mock that simulates API delay
-
       const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
-      if (API_KEY) {
-        // Real API call would go here
-        // For demonstration, showing the structure:
-        /*
-        const base64Image = await fileToBase64(file);
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{
-                parts: [
-                  { text: "Extract nutrition information from this label. Provide: name, brand, calories, protein (g), carbs (g), fats (g), serving size. Return as JSON." },
-                  { inline_data: { mime_type: file.type, data: base64Image } }
-                ]
-              }]
-            })
-          }
-        );
-        const data = await response.json();
-        // Parse and extract nutrition data
-        */
-      }
+      // helper: parse nutrition-like values from a block of text
+      const parseNutritionFromText = (text) => {
+        const normalize = (s) => (s || "").replace(/\u00A0/g, " ");
+        const t = normalize(text).toLowerCase();
+        const findNumber = (rx) => {
+          const m = t.match(rx);
+          if (!m) return null;
+          // remove non-number characters except dot
+          const num = m[1].replace(/[^\d.]/g, "");
+          return num ? parseFloat(num) : null;
+        };
 
-      // Mock extraction with realistic delay
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+        const calories =
+          findNumber(/calories[:\s]*([\d.,]+\s?k?cal)/i) ||
+          findNumber(/energy[:\s]*([\d.,]+)/i) ||
+          findNumber(/(\d{2,4})\s?k?cal/i) ||
+          null;
+        const protein = findNumber(/protein[:\s]*([\d.,]+)\s?g/i) || null;
+        const carbs =
+          findNumber(/carbohydrates[:\s]*([\d.,]+)\s?g/i) ||
+          findNumber(/carbs[:\s]*([\d.,]+)\s?g/i) ||
+          null;
+        const fats =
+          findNumber(/fat[:\s]*([\d.,]+)\s?g/i) ||
+          findNumber(/fats[:\s]*([\d.,]+)\s?g/i) ||
+          null;
+        const servingMatch = t.match(/serving[:\s]*([^\n\r,]+)/i);
+        const servingSize = servingMatch ? servingMatch[1].trim() : null;
 
-      // Simulate extracted data
-      const mockExtraction = {
-        name: "Nutrition Product",
-        brand: "Brand Name",
-        calories: "150",
-        protein: "12",
-        carbs: "20",
-        fats: "3",
-        servingSize: "100g",
+        // Try to extract product name/brand heuristically from first lines
+        const lines = text
+          .split(/\r?\n/)
+          .map((l) => l.trim())
+          .filter(Boolean);
+        const name = lines.length ? lines[0].slice(0, 120) : null;
+        const brand =
+          lines.length > 1 && lines[1].length < 40 ? lines[1] : null;
+
+        return {
+          name: name || "",
+          brand: brand || "",
+          calories: calories !== null ? String(calories) : "",
+          protein: protein !== null ? String(protein) : "",
+          carbs: carbs !== null ? String(carbs) : "",
+          fats: fats !== null ? String(fats) : "",
+          servingSize: servingSize || "100g",
+        };
       };
 
-      setFormData((prev) => ({
-        ...prev,
-        ...mockExtraction,
-      }));
+      // If API key present try Gemini-like API first
+      if (API_KEY) {
+        try {
+          const base64Image = await fileToBase64(file);
 
-      setIsOCRProcessing(false);
+          // NOTE: structure below follows the inline_data style used in some Generative Language REST examples.
+          // If your environment requires a different endpoint/version, update model name / endpoint accordingly.
+          const model = "gemini-1.5"; // adjust if using a different model/version
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
+
+          const promptText =
+            "Extract nutrition information from this image of a nutrition facts label. Return only valid JSON with keys: name, brand, calories, protein, carbs, fats, servingSize. Units: grams for macros and kcal for calories. If a value is not present, set it to an empty string.";
+
+          const body = {
+            // using 'contents' + inline_data as in prior examples
+            contents: [
+              {
+                type: "text",
+                text: promptText,
+              },
+              {
+                type: "image",
+                inline_data: {
+                  mime_type: file.type,
+                  data: base64Image,
+                },
+              },
+            ],
+            // request reasonable safety/length constraints
+            response: {
+              maxOutputTokens: 512,
+            },
+          };
+
+          const resp = await fetch(url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(body),
+          });
+
+          if (!resp.ok) {
+            const txt = await resp.text();
+            throw new Error(`Gemini API error ${resp.status}: ${txt}`);
+          }
+
+          const json = await resp.json();
+
+          // Extract text response from the API - adapt to returned schema
+          // Some versions return generatedText in JSON path response[0].candidates[0].content[0].text
+          let generated = "";
+          try {
+            // defensive traversal
+            const candidates =
+              json?.candidates || json?.output?.candidates || null;
+            if (candidates && candidates.length > 0) {
+              // join candidate text parts if present
+              const parts =
+                candidates[0]?.content || candidates[0]?.message || null;
+              if (parts) {
+                generated = Array.isArray(parts)
+                  ? parts.map((p) => p.text || p).join("\n")
+                  : parts.text || JSON.stringify(parts);
+              } else {
+                generated = JSON.stringify(candidates[0]);
+              }
+            } else if (json?.output?.text) {
+              generated = json.output.text;
+            } else if (json?.response?.text) {
+              generated = json.response.text;
+            } else {
+              generated = JSON.stringify(json);
+            }
+          } catch (err) {
+            generated = JSON.stringify(json);
+          }
+
+          // Attempt to parse JSON first if the model returned strict JSON
+          let parsedData = null;
+          try {
+            parsedData = JSON.parse(generated);
+          } catch {
+            // If not strict JSON, run regex parse on generated text
+            parsedData = parseNutritionFromText(generated);
+          }
+
+          setFormData((prev) => ({
+            ...prev,
+            name: parsedData.name || prev.name,
+            brand: parsedData.brand || prev.brand,
+            calories: parsedData.calories || prev.calories,
+            protein: parsedData.protein || prev.protein,
+            carbs: parsedData.carbs || prev.carbs,
+            fats: parsedData.fats || prev.fats,
+            servingSize: parsedData.servingSize || prev.servingSize,
+          }));
+
+          setIsOCRProcessing(false);
+          // done
+          URL.revokeObjectURL(imageUrl);
+          return;
+        } catch (apiErr) {
+          console.warn("Gemini API attempt failed:", apiErr);
+          // fall through to local OCR fallback
+        }
+      }
+
+      // Fallback: run client-side OCR with tesseract.js
+      try {
+        const { data } = await Tesseract.recognize(file, "eng", {
+          logger: (m) => {
+            // optional: console.log(m);
+          },
+        });
+        const extracted = data?.text || "";
+        const parsed = parseNutritionFromText(extracted);
+        setFormData((prev) => ({
+          ...prev,
+          name: parsed.name || prev.name,
+          brand: parsed.brand || prev.brand,
+          calories: parsed.calories || prev.calories,
+          protein: parsed.protein || prev.protein,
+          carbs: parsed.carbs || prev.carbs,
+          fats: parsed.fats || prev.fats,
+          servingSize: parsed.servingSize || prev.servingSize,
+        }));
+        setIsOCRProcessing(false);
+        URL.revokeObjectURL(imageUrl);
+      } catch (ocrErr) {
+        console.error("Local OCR failed:", ocrErr);
+        setOcrError(
+          "Failed to extract nutrition information. Please enter manually."
+        );
+        setIsOCRProcessing(false);
+        URL.revokeObjectURL(imageUrl);
+      }
     } catch (error) {
-      console.error("OCR Error:", error);
+      console.error("OCR/Error:", error);
       setOcrError(
         "Failed to extract nutrition information. Please enter manually."
       );
@@ -185,6 +324,7 @@ const FoodLogger = ({ onFoodAdded }) => {
             />
             <button
               onClick={() => {
+                if (uploadedImage) URL.revokeObjectURL(uploadedImage);
                 setUploadedImage(null);
                 setOcrError("");
               }}

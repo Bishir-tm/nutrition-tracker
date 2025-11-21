@@ -1,4 +1,4 @@
-// src/App.js
+// src/App.jsx
 import React, { useState, useEffect } from "react";
 import { localForage } from "./utils/storage";
 import Dashboard from "./components/Dashboard";
@@ -64,12 +64,26 @@ function App() {
 
     setDailyLog(updatedLog);
     await localForage.setItem(`foodLog_${today}`, updatedLog);
+
+    // Go back to dashboard after adding
+    setCurrentView("dashboard");
+  };
+
+  const removeFoodFromLog = async (foodId) => {
+    const today = new Date().toDateString();
+    const updatedLog = dailyLog.filter((item) => item.id !== foodId);
+
+    setDailyLog(updatedLog);
+    await localForage.setItem(`foodLog_${today}`, updatedLog);
   };
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
       </div>
     );
   }
@@ -94,6 +108,7 @@ function App() {
               userData={userData}
               dailyLog={dailyLog}
               onAddFood={() => setCurrentView("scanner")}
+              onRemoveFood={removeFoodFromLog}
             />
           )}
           {currentView === "scanner" && (
