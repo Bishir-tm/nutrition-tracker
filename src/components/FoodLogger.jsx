@@ -1,57 +1,56 @@
 // src/components/FoodLogger.js
-import React, { useState } from 'react';
-import { Save, Camera, Upload } from 'lucide-react';
+import React, { useState } from "react";
+import { Save, Camera, Upload } from "lucide-react";
 
 const FoodLogger = ({ onFoodAdded }) => {
-const [formData, setFormData] = useState({
-name: '',
-brand: '',
-calories: '',
-protein: '',
-carbs: '',
-fats: '',
-servingSize: '100g',
-ingredients: ''
-});
+  const [formData, setFormData] = useState({
+    name: "",
+    brand: "",
+    calories: "",
+    protein: "",
+    carbs: "",
+    fats: "",
+    servingSize: "100g",
+    ingredients: "",
+  });
 
-const [isOCRProcessing, setIsOCRProcessing] = useState(false);
+  const [isOCRProcessing, setIsOCRProcessing] = useState(false);
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
 
-const handleChange = (e) => {
-const { name, value } = e.target;
-setFormData(prev => ({
-...prev,
-[name]: value
-}));
-};
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const foodItem = {
+      ...formData,
+      calories: parseFloat(formData.calories) || 0,
+      protein: parseFloat(formData.protein) || 0,
+      carbs: parseFloat(formData.carbs) || 0,
+      fats: parseFloat(formData.fats) || 0,
+      id: Date.now(),
+      timestamp: new Date().toISOString(),
+    };
+    onFoodAdded(foodItem);
+    // Reset form
+    setFormData({
+      name: "",
+      brand: "",
+      calories: "",
+      protein: "",
+      carbs: "",
+      fats: "",
+      servingSize: "100g",
+      ingredients: "",
+    });
+  };
 
-const handleSubmit = (e) => {
-e.preventDefault();
-const foodItem = {
-...formData,
-calories: parseFloat(formData.calories) || 0,
-protein: parseFloat(formData.protein) || 0,
-carbs: parseFloat(formData.carbs) || 0,
-fats: parseFloat(formData.fats) || 0,
-id: Date.now(),
-timestamp: new Date().toISOString()
-};
-onFoodAdded(foodItem);
-// Reset form
-setFormData({
-name: '',
-brand: '',
-calories: '',
-protein: '',
-carbs: '',
-fats: '',
-servingSize: '100g',
-ingredients: ''
-});
-};
-
-const handleImageUpload = async (e) => {
-const file = e.target.files[0];
-if (!file) return;
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
 
     setIsOCRProcessing(true);
 
@@ -59,41 +58,43 @@ if (!file) return;
     setTimeout(() => {
       // Mock AI extraction results
       const mockExtraction = {
-        name: 'Greek Yogurt',
-        brand: 'Brand Name',
-        calories: '120',
-        protein: '23',
-        carbs: '5',
-        fats: '0',
-        servingSize: '170g'
+        name: "Greek Yogurt",
+        brand: "Brand Name",
+        calories: "120",
+        protein: "23",
+        carbs: "5",
+        fats: "0",
+        servingSize: "170g",
       };
 
-      setFormData(prev => ({
+      setFormData((prev) => ({
         ...prev,
-        ...mockExtraction
+        ...mockExtraction,
       }));
       setIsOCRProcessing(false);
     }, 2000);
+  };
 
-};
-
-return (
-<div className="space-y-6">
-<div className="text-center">
-<h2 className="text-xl font-bold text-gray-900">Add Food Manually</h2>
-<p className="text-gray-600">Enter food nutrition information</p>
-</div>
+  return (
+    <div className="space-y-6">
+      <div className="text-center">
+        <h2 className="text-xl font-bold text-gray-900">Add Food Manually</h2>
+        <p className="text-gray-600">Enter food nutrition information</p>
+      </div>
 
       {/* OCR Upload Section */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="font-semibold text-blue-900 mb-2">AI Nutrition Label Scan</h3>
+        <h3 className="font-semibold text-blue-900 mb-2">
+          AI Nutrition Label Scan
+        </h3>
         <p className="text-blue-700 text-sm mb-3">
-          Take a photo of a nutrition label and we'll extract the data automatically
+          Take a photo of a nutrition label and we'll extract the data
+          automatically
         </p>
         <label className="flex items-center justify-center space-x-2 bg-white border-2 border-blue-300 border-dashed rounded-lg p-4 cursor-pointer hover:border-blue-400 transition-colors">
           <Upload className="w-5 h-5 text-blue-600" />
           <span className="text-blue-700 font-medium">
-            {isOCRProcessing ? 'Processing Image...' : 'Upload Nutrition Label'}
+            {isOCRProcessing ? "Processing Image..." : "Upload Nutrition Label"}
           </span>
           <input
             type="file"
@@ -235,8 +236,7 @@ return (
         </button>
       </form>
     </div>
-
-);
+  );
 };
 
 export default FoodLogger;
