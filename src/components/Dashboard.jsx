@@ -1,24 +1,35 @@
-// src/components/Dashboard.js
-import React from 'react';
-import { Plus, Target, Utensils, Activity } from 'lucide-react';
+// src/components/Dashboard.jsx
+import React from "react";
+import { Plus, Target, Utensils, Activity, Trash2 } from "lucide-react";
 
-const Dashboard = ({ userData, dailyLog, onAddFood }) => {
-const calculateTotals = () => {
-return dailyLog.reduce((totals, item) => ({
-calories: totals.calories + (item.calories || 0),
-protein: totals.protein + (item.protein || 0),
-carbs: totals.carbs + (item.carbs || 0),
-fats: totals.fats + (item.fats || 0)
-}), { calories: 0, protein: 0, carbs: 0, fats: 0 });
-};
+const Dashboard = ({ userData, dailyLog, onAddFood, onRemoveFood }) => {
+  const calculateTotals = () => {
+    return dailyLog.reduce(
+      (totals, item) => ({
+        calories: totals.calories + (item.calories || 0),
+        protein: totals.protein + (item.protein || 0),
+        carbs: totals.carbs + (item.carbs || 0),
+        fats: totals.fats + (item.fats || 0),
+      }),
+      { calories: 0, protein: 0, carbs: 0, fats: 0 }
+    );
+  };
 
-const totals = calculateTotals();
-const remainingCalories = Math.max(0, (userData?.dailyCalories || 2000) - totals.calories);
+  const totals = calculateTotals();
+  const remainingCalories = Math.max(
+    0,
+    (userData?.dailyCalories || 2000) - totals.calories
+  );
+  const calorieProgress = (
+    (totals.calories / (userData?.dailyCalories || 2000)) *
+    100
+  ).toFixed(1);
 
-const ProgressRing = ({ progress, color, label, value, max }) => {
-const circumference = 2 * Math.PI * 45;
-const strokeDasharray = circumference;
-const strokeDashoffset = circumference - (progress / 100) * circumference;
+  const ProgressRing = ({ progress, color, label, value, max }) => {
+    const circumference = 2 * Math.PI * 45;
+    const strokeDasharray = circumference;
+    const strokeDashoffset =
+      circumference - (Math.min(progress, 100) / 100) * circumference;
 
     return (
       <div className="flex flex-col items-center">
@@ -44,55 +55,69 @@ const strokeDashoffset = circumference - (progress / 100) * circumference;
               strokeLinecap="round"
             />
           </svg>
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-lg font-bold text-gray-900">{value}</span>
+            <span className="text-xs text-gray-500">/ {max}</span>
           </div>
         </div>
         <span className="text-sm text-gray-600 mt-2">{label}</span>
       </div>
     );
+  };
 
-};
-
-return (
-<div className="space-y-6">
-{/* Header */}
-<div className="text-center">
-<h1 className="text-2xl font-bold text-gray-900">Nutrition Tracker</h1>
-<p className="text-gray-600">Today's Progress</p>
-</div>
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="text-center">
+        <h1 className="text-2xl font-bold text-gray-900">Nutrition Tracker</h1>
+        <p className="text-gray-600">
+          Today's Progress · {new Date().toLocaleDateString()}
+        </p>
+      </div>
 
       {/* Quick Stats */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
           <Target className="w-8 h-8 text-blue-600 mx-auto mb-2" />
-          <div className="text-2xl font-bold text-gray-900">{remainingCalories}</div>
+          <div className="text-2xl font-bold text-gray-900">
+            {Math.round(remainingCalories)}
+          </div>
           <div className="text-sm text-gray-600">Calories Left</div>
+          <div className="text-xs text-gray-500 mt-1">
+            {calorieProgress}% of goal
+          </div>
         </div>
         <div className="bg-white p-4 rounded-lg border border-gray-200 text-center">
           <Utensils className="w-8 h-8 text-green-600 mx-auto mb-2" />
-          <div className="text-2xl font-bold text-gray-900">{dailyLog.length}</div>
+          <div className="text-2xl font-bold text-gray-900">
+            {dailyLog.length}
+          </div>
           <div className="text-sm text-gray-600">Foods Logged</div>
+          <div className="text-xs text-gray-500 mt-1">meals & snacks</div>
         </div>
       </div>
 
       {/* Progress Rings */}
       <div className="bg-white p-6 rounded-lg border border-gray-200">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900">Daily Progress</h2>
+        <h2 className="text-lg font-semibold mb-4 text-gray-900">
+          Daily Progress
+        </h2>
         <div className="grid grid-cols-2 gap-4">
           <ProgressRing
-            progress={(totals.calories / (userData?.dailyCalories || 2000)) * 100}
+            progress={
+              (totals.calories / (userData?.dailyCalories || 2000)) * 100
+            }
             color="#3b82f6"
             label="Calories"
-            value={totals.calories}
+            value={Math.round(totals.calories)}
             max={userData?.dailyCalories || 2000}
           />
           <ProgressRing
-            progress={(totals.protein / 100) * 100}
+            progress={(totals.protein / 150) * 100}
             color="#10b981"
             label="Protein (g)"
             value={totals.protein.toFixed(1)}
-            max={100}
+            max={150}
           />
         </div>
       </div>
@@ -101,11 +126,63 @@ return (
       <div className="bg-white p-6 rounded-lg border border-gray-200">
         <h2 className="text-lg font-semibold mb-4 text-gray-900">Macros</h2>
         <div className="space-y-3">
-          <MacroBar label="Protein" value={totals.protein} color="bg-green-500" max={100} />
-          <MacroBar label="Carbs" value={totals.carbs} color="bg-blue-500" max={300} />
-          <MacroBar label="Fats" value={totals.fats} color="bg-yellow-500" max={70} />
+          <MacroBar
+            label="Protein"
+            value={totals.protein}
+            color="bg-green-500"
+            max={150}
+          />
+          <MacroBar
+            label="Carbs"
+            value={totals.carbs}
+            color="bg-blue-500"
+            max={300}
+          />
+          <MacroBar
+            label="Fats"
+            value={totals.fats}
+            color="bg-yellow-500"
+            max={70}
+          />
         </div>
       </div>
+
+      {/* Today's Foods */}
+      {dailyLog.length > 0 && (
+        <div className="bg-white p-6 rounded-lg border border-gray-200">
+          <h2 className="text-lg font-semibold mb-4 text-gray-900">
+            Today's Foods
+          </h2>
+          <div className="space-y-2">
+            {dailyLog.map((item) => (
+              <div
+                key={item.id}
+                className="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900">{item.name}</div>
+                  {item.brand && (
+                    <div className="text-xs text-gray-500">{item.brand}</div>
+                  )}
+                  <div className="text-sm text-gray-600 mt-1">
+                    {Math.round(item.calories)} cal · P:{" "}
+                    {item.protein?.toFixed(1)}g · C: {item.carbs?.toFixed(1)}g ·
+                    F: {item.fats?.toFixed(1)}g
+                  </div>
+                </div>
+                {onRemoveFood && (
+                  <button
+                    onClick={() => onRemoveFood(item.id)}
+                    className="ml-2 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Quick Actions */}
       <button
@@ -116,26 +193,28 @@ return (
         <span>Add Food</span>
       </button>
     </div>
-
-);
+  );
 };
 
 const MacroBar = ({ label, value, color, max }) => {
-const percentage = Math.min((value / max) * 100, 100);
+  const percentage = Math.min((value / max) * 100, 100);
 
-return (
-<div>
-<div className="flex justify-between text-sm mb-1">
-<span className="text-gray-700">{label}</span>
-<span className="text-gray-900 font-medium">{value.toFixed(1)}g</span>
-</div>
-<div className="w-full bg-gray-200 rounded-full h-2">
-<div
-className={`h-2 rounded-full ${color} transition-all duration-300`}
-style={{ width: `${percentage}%` }} ></div>
-</div>
-</div>
-);
+  return (
+    <div>
+      <div className="flex justify-between text-sm mb-1">
+        <span className="text-gray-700">{label}</span>
+        <span className="text-gray-900 font-medium">
+          {value.toFixed(1)}g / {max}g ({percentage.toFixed(0)}%)
+        </span>
+      </div>
+      <div className="w-full bg-gray-200 rounded-full h-2">
+        <div
+          className={`h-2 rounded-full ${color} transition-all duration-300`}
+          style={{ width: `${percentage}%` }}
+        ></div>
+      </div>
+    </div>
+  );
 };
 
 export default Dashboard;
