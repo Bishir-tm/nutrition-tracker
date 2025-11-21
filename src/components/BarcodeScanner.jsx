@@ -1,22 +1,22 @@
 // src/components/BarcodeScanner.js
-import React, { useState, useEffect } from 'react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
-import { Camera, X, Utensils } from 'lucide-react';
-import { searchOpenFoodFacts } from '../utils/storage';
+import React, { useState, useEffect } from "react";
+import { Html5QrcodeScanner } from "html5-qrcode";
+import { Camera, X, Utensils } from "lucide-react";
+import { searchOpenFoodFacts } from "../utils/storage";
 
 const BarcodeScanner = ({ onFoodScanned, onManualEntry }) => {
-const [scanResult, setScanResult] = useState(null);
-const [isLoading, setIsLoading] = useState(false);
-const [error, setError] = useState('');
+  const [scanResult, setScanResult] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
-useEffect(() => {
-const scanner = new Html5QrcodeScanner('reader', {
-qrbox: {
-width: 250,
-height: 250,
-},
-fps: 5,
-});
+  useEffect(() => {
+    const scanner = new Html5QrcodeScanner("reader", {
+      qrbox: {
+        width: 250,
+        height: 250,
+      },
+      fps: 5,
+    });
 
     scanner.render(success, error);
 
@@ -32,39 +32,41 @@ fps: 5,
     return () => {
       scanner.clear();
     };
+  }, []);
 
-}, []);
-
-const handleBarcodeScanned = async (barcode) => {
-setIsLoading(true);
-setError('');
+  const handleBarcodeScanned = async (barcode) => {
+    setIsLoading(true);
+    setError("");
 
     try {
       const product = await searchOpenFoodFacts(barcode);
       setScanResult(product);
     } catch (err) {
-      setError('Product not found. Try manual entry or take a photo of the nutrition label.');
+      setError(
+        "Product not found. Try manual entry or take a photo of the nutrition label."
+      );
     } finally {
       setIsLoading(false);
     }
+  };
 
-};
+  const handleAddFood = () => {
+    if (scanResult) {
+      onFoodScanned(scanResult);
+    }
+  };
 
-const handleAddFood = () => {
-if (scanResult) {
-onFoodScanned(scanResult);
-}
-};
-
-return (
-<div className="space-y-6">
-<div className="text-center">
-<h2 className="text-xl font-bold text-gray-900">Scan Barcode</h2>
-<p className="text-gray-600">Point your camera at the product barcode</p>
-</div>
+  return (
+    <div className="space-y-6">
+      <div className="text-center">
+        <h2 className="text-xl font-bold text-gray-900">Scan Barcode</h2>
+        <p className="text-gray-600">
+          Point your camera at the product barcode
+        </p>
+      </div>
 
       {/* Scanner Container */}
-      <div className="bg-black rounded-lg overflow-hidden">
+      <div className="bg-[#afafaf] rounded-lg overflow-hidden">
         <div id="reader" className="w-full"></div>
       </div>
 
@@ -88,7 +90,7 @@ return (
               Manual Entry
             </button>
             <button
-              onClick={() => setError('')}
+              onClick={() => setError("")}
               className="flex-1 bg-gray-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-gray-700 transition-colors"
             >
               Try Again
@@ -147,8 +149,7 @@ return (
         <span>Enter Food Manually</span>
       </button>
     </div>
-
-);
+  );
 };
 
 export default BarcodeScanner;
