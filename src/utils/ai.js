@@ -1,123 +1,31 @@
 // src/utils/ai.js
-import { GoogleGenAI } from "@google/genai";
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  "ttps://nutrition-tracker-backend-h4yi2sxzh-bitmo24-gmailcoms-projects.vercel.app/api";
 
 export const generateMealPlan = async (userData = {}) => {
-  if (!API_KEY) {
-    throw new Error(
-      "Gemini API key is not configured. Please set VITE_GEMINI_API_KEY in your .env file"
-    );
-  }
-
-  const prompt = `Create a detailed one-day meal plan based on Nigerian cuisine.
-    The user's data is as follows:
-    - Daily calorie target: ${userData.dailyCalories || 2000} calories
-    - Goal: ${userData.goal || "Maintain weight"}
-    - Dietary restrictions: ${
-      userData.dietaryRestrictions?.join(", ") || "None"
-    }
-    - Preferences: ${userData.preferences?.join(", ") || "None"}
-    - Activity level: ${userData.activityLevel || "Sedentary"}
-
-    Please provide the response in a valid JSON format with the following structure:
-    {
-      "day": "Today's date",
-      "meals": [
-        {
-          "type": "breakfast" | "lunch" | "dinner" | "snack",
-          "name": "Nigerian dish name",
-          "foods": [
-            {
-              "name": "Food item",
-              "serving": "Serving size (e.g., 1 cup, 100g)",
-              "calories": 0,
-              "protein": 0,
-              "carbs": 0,
-              "fats": 0
-            }
-          ],
-          "totalCalories": 0,
-          "totalProtein": 0,
-          "totalCarbs": 0,
-          "totalFats": 0
-        }
-      ],
-      "shoppingList": ["Item 1", "Item 2", ...],
-      "dailyTotals": {
-        "calories": 0,
-        "protein": 0,
-        "carbs": 0,
-        "fats": 0
-      }
-    }
-    
-    Return ONLY the JSON object, no markdown formatting or additional text.`;
-
   try {
-    const ai = new GoogleGenAI({
-      apiKey: API_KEY,
-    });
-
-    const model = "gemini-2.5-flash";
-    console.log("Using model:", model);
-    const contents = [
-      {
-        role: "user",
-        parts: [
-          {
-            text: prompt,
-          },
-        ],
+    const response = await fetch(`${API_URL}/meal-plan`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
-    ];
-
-    const response = await ai.models.generateContentStream({
-      model,
-      contents,
+      body: JSON.stringify({ userData }),
     });
 
-    let fullText = "";
-
-    // Collect all chunks
-    for await (const chunk of response) {
-      console.log(chunk.text);
-      if (chunk.text) {
-        fullText += chunk.text;
+    if (!response.ok) {
+      const errorData = await response.json();
+      if (errorData.fallback) {
+        return errorData.fallback;
       }
+      throw new Error("Failed to generate meal plan");
     }
 
-    console.log("Raw AI response:", fullText);
-
-    // Try to extract JSON from the response
-    let jsonData;
-
-    // First, try to parse the entire response as JSON
-    try {
-      jsonData = JSON.parse(fullText);
-    } catch (e) {
-      // If that fails, try to extract JSON from markdown code blocks
-      const jsonMatch =
-        fullText.match(/```json\n([\s\S]*?)\n```/) ||
-        fullText.match(/```\n([\s\S]*?)\n```/) ||
-        fullText.match(/{[\s\S]*}/);
-
-      if (jsonMatch) {
-        const jsonString = jsonMatch[1] || jsonMatch[0];
-        jsonData = JSON.parse(jsonString);
-      } else {
-        throw new Error("Could not extract valid JSON from response");
-      }
-    }
-
-    // Set the day to the current date
-    jsonData.day = new Date().toDateString();
-
-    return jsonData;
+    const data = await response.json();
+    return data;
   } catch (error) {
     console.error("Error generating meal plan:", error);
-
-    // Return a fallback meal plan if API fails
     return getFallbackMealPlan(userData);
   }
 };
