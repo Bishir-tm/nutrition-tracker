@@ -1,8 +1,6 @@
 // src/utils/ai.js
 
-const API_URL =
-  import.meta.env.VITE_API_URL ||
-  "https://nutrition-tracker-backend-psi.vercel.app/api";
+const API_URL = "https://nutrition-tracker-backend-psi.vercel.app/api";
 
 export const generateMealPlan = async (userData = {}) => {
   try {
