@@ -82,7 +82,7 @@ const MealPlanner = ({ userData }) => {
 
   return (
     <div className="space-y-6">
-      <div className="text-center">
+      <div className="text-center mt-12">
         <h2 className="text-2xl font-bold text-gray-900">Your Meal Plan</h2>
         <p className="text-gray-600">Generated for {mealPlan.day}</p>
       </div>

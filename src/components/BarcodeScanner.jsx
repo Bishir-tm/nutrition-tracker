@@ -107,7 +107,7 @@ const BarcodeScanner = ({ onFoodScanned, onManualEntry }) => {
   if (cameraError && !hasPermission) {
     return (
       <div className="space-y-6">
-        <div className="text-center">
+        <div className="text-center mt-12">
           <h2 className="text-xl font-bold text-gray-900">Scan Barcode</h2>
           <p className="text-gray-600">Camera access required</p>
         </div>

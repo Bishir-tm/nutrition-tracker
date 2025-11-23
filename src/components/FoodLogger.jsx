@@ -1,7 +1,7 @@
 // src/components/FoodLogger.jsx
 import React, { useState } from "react";
-import { Save, Camera, Upload, X } from "lucide-react";
-import Tesseract from "tesseract.js";
+import { Save, Upload, X, AlertCircle } from "lucide-react";
+import { GoogleGenAI } from "@google/genai";
 
 const FoodLogger = ({ onFoodAdded }) => {
   const [formData, setFormData] = useState({
@@ -59,181 +59,166 @@ const FoodLogger = ({ onFoodAdded }) => {
       ingredients: "",
     });
     setUploadedImage(null);
+    setOcrError("");
   };
 
   const extractNutritionFromImage = async (file) => {
+    const imageUrl = URL.createObjectURL(file);
+
     try {
       setIsOCRProcessing(true);
       setOcrError("");
-
-      // Create a preview URL
-      const imageUrl = URL.createObjectURL(file);
       setUploadedImage(imageUrl);
 
       const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
-      // helper: parse nutrition-like values from a block of text
-      const parseNutritionFromText = (text) => {
-        const normalize = (s) => (s || "").replace(/\u00A0/g, " ");
-        const t = normalize(text).toLowerCase();
-        const findNumber = (rx) => {
-          const m = t.match(rx);
-          if (!m) return null;
-          // remove non-number characters except dot
-          const num = m[1].replace(/[^\d.]/g, "");
-          return num ? parseFloat(num) : null;
-        };
+      if (!API_KEY) {
+        throw new Error(
+          "API key not configured. Please add VITE_GEMINI_API_KEY to your .env file"
+        );
+      }
 
-        const calories =
-          findNumber(/calories[:\s]*([\d.,]+\s?k?cal)/i) ||
-          findNumber(/energy[:\s]*([\d.,]+)/i) ||
-          findNumber(/(\d{2,4})\s?k?cal/i) ||
-          null;
-        const protein = findNumber(/protein[:\s]*([\d.,]+)\s?g/i) || null;
-        const carbs =
-          findNumber(/carbohydrates[:\s]*([\d.,]+)\s?g/i) ||
-          findNumber(/carbs[:\s]*([\d.,]+)\s?g/i) ||
-          null;
-        const fats =
-          findNumber(/fat[:\s]*([\d.,]+)\s?g/i) ||
-          findNumber(/fats[:\s]*([\d.,]+)\s?g/i) ||
-          null;
-        const servingMatch = t.match(/serving[:\s]*([^\n\r,]+)/i);
-        const servingSize = servingMatch ? servingMatch[1].trim() : null;
+      const base64Image = await fileToBase64(file);
 
-        // Try to extract product name/brand heuristically from first lines
-        const lines = text
-          .split(/\r?\n/)
-          .map((l) => l.trim())
-          .filter(Boolean);
-        const name = lines.length ? lines[0].slice(0, 120) : null;
-        const brand =
-          lines.length > 1 && lines[1].length < 40 ? lines[1] : null;
+      const ai = new GoogleGenAI({
+        apiKey: API_KEY,
+      });
 
-        return {
-          name: name || "",
-          brand: brand || "",
-          calories: calories !== null ? String(calories) : "",
-          protein: protein !== null ? String(protein) : "",
-          carbs: carbs !== null ? String(carbs) : "",
-          fats: fats !== null ? String(fats) : "",
-          servingSize: servingSize || "100g",
-        };
-      };
+      const model = "gemini-2.5-flash";
 
-      // If API key present try Gemini-like API first
-      if (API_KEY) {
-        try {
-          const base64Image = await fileToBase64(file);
+      const promptText = `Analyze this nutrition facts label image and extract the following information. Return ONLY a valid JSON object with no additional text or markdown formatting.
 
-          // NOTE: structure below follows the inline_data style used in some Generative Language REST examples.
-          // If your environment requires a different endpoint/version, update model name / endpoint accordingly.
-          const model = "gemini-1.5-flash"; // adjust if using a different model/version
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
+JSON structure:
+{
+  "name": "product name",
+  "brand": "brand name",
+  "calories": "number only (kcal)",
+  "protein": "number only (grams)",
+  "carbs": "number only (grams)",
+  "fats": "number only (grams)",
+  "servingSize": "serving size with unit"
+}
 
-          const promptText =
-            "Extract nutrition information from this image of a nutrition facts label. Return only valid JSON with keys: name, brand, calories, protein, carbs, fats, servingSize. Units: grams for macros and kcal for calories. If a value is not present, set it to an empty string.";
+If any value is not visible or unclear, use an empty string "". Return only numbers for calories, protein, carbs, and fats (no units in the values).`;
 
-          const body = {
-            contents: [
-              {
-                parts: [
-                  { text: promptText },
-                  {
-                    inline_data: {
-                      mime_type: file.type,
-                      data: base64Image,
-                    },
-                  },
-                ],
+      const contents = [
+        {
+          role: "user",
+          parts: [
+            { text: promptText },
+            {
+              inlineData: {
+                mimeType: file.type,
+                data: base64Image,
               },
-            ],
-            generationConfig: {
-              maxOutputTokens: 512,
             },
-          };
+          ],
+        },
+      ];
 
-          const resp = await fetch(url, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(body),
-          });
+      const response = await ai.models.generateContentStream({
+        model,
+        contents,
+      });
 
-          if (!resp.ok) {
-            const txt = await resp.text();
-            throw new Error(`Gemini API error ${resp.status}: ${txt}`);
-          }
+      let fullText = "";
 
-          const json = await resp.json();
-          const generated = json.candidates[0].content.parts[0].text;
-
-          // Attempt to parse JSON first if the model returned strict JSON
-          let parsedData = null;
-          try {
-            parsedData = JSON.parse(generated);
-          } catch {
-            // If not strict JSON, run regex parse on generated text
-            parsedData = parseNutritionFromText(generated);
-          }
-
-          setFormData((prev) => ({
-            ...prev,
-            name: parsedData.name || prev.name,
-            brand: parsedData.brand || prev.brand,
-            calories: parsedData.calories || prev.calories,
-            protein: parsedData.protein || prev.protein,
-            carbs: parsedData.carbs || prev.carbs,
-            fats: parsedData.fats || prev.fats,
-            servingSize: parsedData.servingSize || prev.servingSize,
-          }));
-
-          setIsOCRProcessing(false);
-          // done
-          URL.revokeObjectURL(imageUrl);
-          return;
-        } catch (apiErr) {
-          console.warn("Gemini API attempt failed");
-          // fall through to local OCR fallback
+      // Collect all chunks
+      for await (const chunk of response) {
+        if (chunk.text) {
+          fullText += chunk.text;
         }
       }
 
-      // Fallback: run client-side OCR with tesseract.js
-      try {
-        const { data } = await Tesseract.recognize(file, "eng", {
-          logger: (m) => {
-            // optional: console.log(m);
-          },
-        });
-        const extracted = data?.text || "";
-        const parsed = parseNutritionFromText(extracted);
-        setFormData((prev) => ({
-          ...prev,
-          name: parsed.name || prev.name,
-          brand: parsed.brand || prev.brand,
-          calories: parsed.calories || prev.calories,
-          protein: parsed.protein || prev.protein,
-          carbs: parsed.carbs || prev.carbs,
-          fats: parsed.fats || prev.fats,
-          servingSize: parsed.servingSize || prev.servingSize,
-        }));
-        setIsOCRProcessing(false);
-        URL.revokeObjectURL(imageUrl);
-      } catch (ocrErr) {
-        console.error("Local OCR failed:", ocrErr);
-        setOcrError(
-          "Failed to extract nutrition information. Please enter manually."
-        );
-        setIsOCRProcessing(false);
-        URL.revokeObjectURL(imageUrl);
+      console.log("Gemini OCR response:", fullText);
+
+      if (!fullText.trim()) {
+        throw new Error("No response received from AI");
       }
-    } catch (error) {
-      console.error("OCR/Error:", error);
-      setOcrError(
-        "Failed to extract nutrition information. Please enter manually."
-      );
+
+      // Try to parse the response
+      let parsedData = null;
+
+      try {
+        // Try direct JSON parse first
+        parsedData = JSON.parse(fullText);
+      } catch (parseError) {
+        // Try to extract JSON from markdown code blocks
+        const jsonMatch =
+          fullText.match(/```json\s*([\s\S]*?)\s*```/) ||
+          fullText.match(/```\s*([\s\S]*?)\s*```/) ||
+          fullText.match(/\{[\s\S]*\}/);
+
+        if (jsonMatch) {
+          const jsonString = jsonMatch[1] || jsonMatch[0];
+          try {
+            parsedData = JSON.parse(jsonString);
+          } catch (innerError) {
+            throw new Error("Could not parse JSON from response");
+          }
+        } else {
+          throw new Error("No valid JSON found in response");
+        }
+      }
+
+      // Validate that we have at least some data
+      if (!parsedData || typeof parsedData !== "object") {
+        throw new Error("Invalid data format received from AI");
+      }
+
+      // Update form with extracted data
+      setFormData((prev) => ({
+        ...prev,
+        name: parsedData.name || prev.name,
+        brand: parsedData.brand || prev.brand,
+        calories: parsedData.calories || prev.calories,
+        protein: parsedData.protein || prev.protein,
+        carbs: parsedData.carbs || prev.carbs,
+        fats: parsedData.fats || prev.fats,
+        servingSize: parsedData.servingSize || prev.servingSize,
+      }));
+
       setIsOCRProcessing(false);
+      URL.revokeObjectURL(imageUrl);
+    } catch (error) {
+      console.error("OCR Error:", error);
+
+      let errorMessage = "Failed to extract nutrition information. ";
+
+      // Handle specific error types
+      if (error.message.includes("API key")) {
+        errorMessage += "API key is not configured properly.";
+      } else if (
+        error.message.includes("not found") ||
+        error.message.includes("404")
+      ) {
+        errorMessage +=
+          "The AI model is not available. Please check your API configuration.";
+      } else if (
+        error.message.includes("quota") ||
+        error.message.includes("429")
+      ) {
+        errorMessage += "API quota exceeded. Please try again later.";
+      } else if (
+        error.message.includes("network") ||
+        error.message.includes("fetch")
+      ) {
+        errorMessage += "Network error. Please check your internet connection.";
+      } else if (
+        error.message.includes("JSON") ||
+        error.message.includes("parse")
+      ) {
+        errorMessage +=
+          "Could not understand the AI response. Please try a clearer image.";
+      } else {
+        errorMessage +=
+          error.message ||
+          "Please try again or enter the information manually.";
+      }
+
+      setOcrError(errorMessage);
+      setIsOCRProcessing(false);
+      URL.revokeObjectURL(imageUrl);
     }
   };
 
@@ -241,19 +226,32 @@ const FoodLogger = ({ onFoodAdded }) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Clear previous error
+    setOcrError("");
+
     // Validate file type
     if (!file.type.startsWith("image/")) {
-      setOcrError("Please upload a valid image file");
+      setOcrError("Please upload a valid image file (JPG, PNG, etc.)");
       return;
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      setOcrError("Image size should be less than 5MB");
+      setOcrError(
+        "Image size should be less than 5MB. Please use a smaller image."
+      );
       return;
     }
 
     await extractNutritionFromImage(file);
+  };
+
+  const handleClearImage = () => {
+    if (uploadedImage) {
+      URL.revokeObjectURL(uploadedImage);
+    }
+    setUploadedImage(null);
+    setOcrError("");
   };
 
   const fileToBase64 = (file) => {
@@ -278,10 +276,10 @@ const FoodLogger = ({ onFoodAdded }) => {
       {/* OCR Upload Section */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <h3 className="font-semibold text-blue-900 mb-2">
-          📸 AI Nutrition Label Scan
+          Nutrition Label Scan
         </h3>
         <p className="text-blue-700 text-sm mb-3">
-          Take a photo of a nutrition label and we'll extract the data
+          Take a photo of a nutrition label and get an extract of the data
           automatically
         </p>
 
@@ -293,12 +291,9 @@ const FoodLogger = ({ onFoodAdded }) => {
               className="w-full h-48 object-contain bg-white rounded border"
             />
             <button
-              onClick={() => {
-                if (uploadedImage) URL.revokeObjectURL(uploadedImage);
-                setUploadedImage(null);
-                setOcrError("");
-              }}
-              className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+              onClick={handleClearImage}
+              className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors"
+              disabled={isOCRProcessing}
             >
               <X className="w-4 h-4" />
             </button>
@@ -306,12 +301,26 @@ const FoodLogger = ({ onFoodAdded }) => {
         )}
 
         {ocrError && (
-          <div className="mb-3 p-2 bg-red-100 border border-red-300 rounded text-red-700 text-sm">
-            {ocrError}
+          <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-start space-x-2">
+              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-red-800 text-sm font-medium mb-1">
+                  Error Processing Image
+                </p>
+                <p className="text-red-700 text-sm">{ocrError}</p>
+              </div>
+            </div>
           </div>
         )}
 
-        <label className="flex items-center justify-center space-x-2 bg-white border-2 border-blue-300 border-dashed rounded-lg p-4 cursor-pointer hover:border-blue-400 transition-colors">
+        <label
+          className={`flex items-center justify-center space-x-2 bg-white border-2 border-blue-300 border-dashed rounded-lg p-4 transition-colors ${
+            isOCRProcessing
+              ? "cursor-not-allowed opacity-60"
+              : "cursor-pointer hover:border-blue-400"
+          }`}
+        >
           <Upload className="w-5 h-5 text-blue-600" />
           <span className="text-blue-700 font-medium">
             {isOCRProcessing ? "Processing Image..." : "Upload Nutrition Label"}
@@ -330,10 +339,15 @@ const FoodLogger = ({ onFoodAdded }) => {
           <div className="mt-3 flex items-center justify-center">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
             <span className="ml-2 text-blue-700 text-sm">
-              Extracting nutrition data...
+              Analyzing image with AI...
             </span>
           </div>
         )}
+
+        <div className="mt-3 text-xs text-blue-600">
+          Tip: Make sure the nutrition label is clearly visible and well-lit for
+          best results
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">

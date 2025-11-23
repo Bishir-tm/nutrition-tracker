@@ -1,9 +1,7 @@
 name: Deploy to GitHub Pages
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -23,13 +21,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      # Inject secret into .env temporarily for build
-      - name: Set up environment variables
-        run: |
-          echo "VITE_GEMINI_API_KEY=${{ secrets.VITE_GEMINI_API_KEY }}" > .env
-
+      # Build with secret injected directly
       - name: Build
         run: npm run build
+        env:
+          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
 
       # Add 404.html for SPA routing
       - name: Add 404.html for SPA routing
