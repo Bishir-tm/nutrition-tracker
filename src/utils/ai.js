@@ -2,7 +2,7 @@
 
 const API_URL =
   import.meta.env.VITE_API_URL ||
-  "ttps://nutrition-tracker-backend-h4yi2sxzh-bitmo24-gmailcoms-projects.vercel.app/api";
+  "https://nutrition-tracker-backend-psi.vercel.app/api";
 
 export const generateMealPlan = async (userData = {}) => {
   try {

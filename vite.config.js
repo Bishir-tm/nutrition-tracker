@@ -10,7 +10,7 @@ export default defineConfig(({ mode }) => {
     define: {
       "import.meta.env.VITE_API_URL": JSON.stringify(
         env.VITE_API_URL ||
-          "https://nutrition-tracker-backend-h4yi2sxzh-bitmo24-gmailcoms-projects.vercel.app/api"
+          "https://nutrition-tracker-backend-psi.vercel.app/api"
       ),
     },
     server: {
