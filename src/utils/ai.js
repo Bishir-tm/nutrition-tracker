@@ -59,8 +59,8 @@ export const generateMealPlan = async (userData = {}) => {
       apiKey: API_KEY,
     });
 
-    const model = "gemini-3-pro-preview";
-
+    const model = "gemini-2.5-flash";
+    console.log("Using model:", model);
     const contents = [
       {
         role: "user",
