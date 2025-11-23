@@ -1,89 +1,56 @@
 // src/components/MealPlanner.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Utensils, ShoppingCart, Plus, ChefHat } from 'lucide-react';
 
+import { generateMealPlan as generateMealPlanFromAI } from '../utils/ai';
+
 const MealPlanner = ({ userData }) => {
-const [mealPlan, setMealPlan] = useState(null);
-const [isGenerating, setIsGenerating] = useState(false);
 
-const generateMealPlan = async () => {
-setIsGenerating(true);
+  const [mealPlan, setMealPlan] = useState(null);
 
-    // Simulate AI meal plan generation
-    setTimeout(() => {
-      const mockMealPlan = {
-        day: new Date().toDateString(),
-        meals: [
-          {
-            type: 'breakfast',
-            name: 'Protein Oatmeal with Berries',
-            foods: [
-              { name: 'Oats', serving: '1/2 cup', calories: 150, protein: 5, carbs: 27, fats: 3 },
-              { name: 'Protein Powder', serving: '1 scoop', calories: 120, protein: 24, carbs: 3, fats: 1 },
-              { name: 'Mixed Berries', serving: '1 cup', calories: 80, protein: 1, carbs: 20, fats: 0 }
-            ],
-            totalCalories: 350,
-            totalProtein: 30,
-            totalCarbs: 50,
-            totalFats: 4
-          },
-          {
-            type: 'lunch',
-            name: 'Grilled Chicken Salad',
-            foods: [
-              { name: 'Chicken Breast', serving: '150g', calories: 165, protein: 31, carbs: 0, fats: 3.6 },
-              { name: 'Mixed Greens', serving: '2 cups', calories: 20, protein: 1, carbs: 4, fats: 0 },
-              { name: 'Olive Oil Dressing', serving: '1 tbsp', calories: 120, protein: 0, carbs: 0, fats: 14 }
-            ],
-            totalCalories: 305,
-            totalProtein: 32,
-            totalCarbs: 4,
-            totalFats: 17.6
-          },
-          {
-            type: 'dinner',
-            name: 'Salmon with Quinoa & Veggies',
-            foods: [
-              { name: 'Salmon Fillet', serving: '200g', calories: 412, protein: 40, carbs: 0, fats: 26 },
-              { name: 'Quinoa', serving: '1 cup cooked', calories: 222, protein: 8, carbs: 39, fats: 3.5 },
-              { name: 'Steamed Broccoli', serving: '1 cup', calories: 55, protein: 4, carbs: 11, fats: 1 }
-            ],
-            totalCalories: 689,
-            totalProtein: 52,
-            totalCarbs: 50,
-            totalFats: 30.5
-          },
-          {
-            type: 'snack',
-            name: 'Greek Yogurt with Nuts',
-            foods: [
-              { name: 'Greek Yogurt', serving: '170g', calories: 100, protein: 18, carbs: 6, fats: 0 },
-              { name: 'Almonds', serving: '1/4 cup', calories: 205, protein: 7, carbs: 7, fats: 18 }
-            ],
-            totalCalories: 305,
-            totalProtein: 25,
-            totalCarbs: 13,
-            totalFats: 18
-          }
-        ],
-        shoppingList: [
-          'Oats', 'Protein Powder', 'Mixed Berries', 'Chicken Breast',
-          'Mixed Greens', 'Olive Oil', 'Salmon Fillet', 'Quinoa',
-          'Broccoli', 'Greek Yogurt', 'Almonds'
-        ],
-        dailyTotals: {
-          calories: 1649,
-          protein: 139,
-          carbs: 117,
-          fats: 70.1
-        }
-      };
+  const [isGenerating, setIsGenerating] = useState(false);
 
-      setMealPlan(mockMealPlan);
+
+
+  useEffect(() => {
+
+    const savedMealPlan = localStorage.getItem('mealPlan');
+
+    if (savedMealPlan) {
+
+      setMealPlan(JSON.parse(savedMealPlan));
+
+    }
+
+  }, []);
+
+
+
+  const generateMealPlan = async () => {
+
+    setIsGenerating(true);
+
+    try {
+
+      const newMealPlan = await generateMealPlanFromAI(userData);
+
+      setMealPlan(newMealPlan);
+
+      localStorage.setItem('mealPlan', JSON.stringify(newMealPlan));
+
+    } catch (error) {
+
+      console.error("Failed to generate meal plan:", error);
+
+      // Optionally, show an error message to the user
+
+    } finally {
+
       setIsGenerating(false);
-    }, 2000);
 
-};
+    }
+
+  };
 
 if (!mealPlan) {
 return (

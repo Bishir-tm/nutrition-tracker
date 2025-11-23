@@ -66,9 +66,9 @@ const Dashboard = ({ userData, dailyLog, onAddFood, onRemoveFood }) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 ">
       {/* Header */}
-      <div className="text-center">
+      <div className="text-center mt-12">
         <h1 className="text-2xl font-bold text-gray-900">Nutrition Tracker</h1>
         <p className="text-gray-600">
           Today's Progress · {new Date().toLocaleDateString()}

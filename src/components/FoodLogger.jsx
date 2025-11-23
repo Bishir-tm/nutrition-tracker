@@ -128,29 +128,27 @@ const FoodLogger = ({ onFoodAdded }) => {
 
           // NOTE: structure below follows the inline_data style used in some Generative Language REST examples.
           // If your environment requires a different endpoint/version, update model name / endpoint accordingly.
-          const model = "gemini-1.5"; // adjust if using a different model/version
+          const model = "gemini-1.5-flash"; // adjust if using a different model/version
           const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
 
           const promptText =
             "Extract nutrition information from this image of a nutrition facts label. Return only valid JSON with keys: name, brand, calories, protein, carbs, fats, servingSize. Units: grams for macros and kcal for calories. If a value is not present, set it to an empty string.";
 
           const body = {
-            // using 'contents' + inline_data as in prior examples
             contents: [
               {
-                type: "text",
-                text: promptText,
-              },
-              {
-                type: "image",
-                inline_data: {
-                  mime_type: file.type,
-                  data: base64Image,
-                },
+                parts: [
+                  { text: promptText },
+                  {
+                    inline_data: {
+                      mime_type: file.type,
+                      data: base64Image,
+                    },
+                  },
+                ],
               },
             ],
-            // request reasonable safety/length constraints
-            response: {
+            generationConfig: {
               maxOutputTokens: 512,
             },
           };
@@ -169,35 +167,7 @@ const FoodLogger = ({ onFoodAdded }) => {
           }
 
           const json = await resp.json();
-
-          // Extract text response from the API - adapt to returned schema
-          // Some versions return generatedText in JSON path response[0].candidates[0].content[0].text
-          let generated = "";
-          try {
-            // defensive traversal
-            const candidates =
-              json?.candidates || json?.output?.candidates || null;
-            if (candidates && candidates.length > 0) {
-              // join candidate text parts if present
-              const parts =
-                candidates[0]?.content || candidates[0]?.message || null;
-              if (parts) {
-                generated = Array.isArray(parts)
-                  ? parts.map((p) => p.text || p).join("\n")
-                  : parts.text || JSON.stringify(parts);
-              } else {
-                generated = JSON.stringify(candidates[0]);
-              }
-            } else if (json?.output?.text) {
-              generated = json.output.text;
-            } else if (json?.response?.text) {
-              generated = json.response.text;
-            } else {
-              generated = JSON.stringify(json);
-            }
-          } catch (err) {
-            generated = JSON.stringify(json);
-          }
+          const generated = json.candidates[0].content.parts[0].text;
 
           // Attempt to parse JSON first if the model returned strict JSON
           let parsedData = null;
@@ -224,7 +194,7 @@ const FoodLogger = ({ onFoodAdded }) => {
           URL.revokeObjectURL(imageUrl);
           return;
         } catch (apiErr) {
-          console.warn("Gemini API attempt failed:", apiErr);
+          console.warn("Gemini API attempt failed");
           // fall through to local OCR fallback
         }
       }

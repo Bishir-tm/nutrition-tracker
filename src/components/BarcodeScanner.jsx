@@ -1,5 +1,5 @@
 // src/components/BarcodeScanner.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useZxing } from "react-zxing";
 import { Camera, X, Utensils, AlertCircle, CheckCircle } from "lucide-react";
 import { searchOpenFoodFacts } from "../utils/storage";
@@ -9,6 +9,32 @@ const BarcodeScanner = ({ onFoodScanned, onManualEntry }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [lastScannedCode, setLastScannedCode] = useState("");
+  const [cameraError, setCameraError] = useState("");
+  const [hasPermission, setHasPermission] = useState(false);
+
+  // Request camera permission on mount
+  useEffect(() => {
+    requestCameraPermission();
+  }, []);
+
+  const requestCameraPermission = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+      });
+
+      // Permission granted, stop the test stream
+      stream.getTracks().forEach((track) => track.stop());
+      setHasPermission(true);
+      setCameraError("");
+    } catch (err) {
+      console.error("Camera permission error:", err);
+      setCameraError(
+        "Camera access denied. Please enable camera permissions in your browser settings."
+      );
+      setHasPermission(false);
+    }
+  };
 
   const { ref } = useZxing({
     onDecodeResult(result) {
@@ -22,12 +48,15 @@ const BarcodeScanner = ({ onFoodScanned, onManualEntry }) => {
       }
     },
     onError(error) {
-      console.log("Scanner error:", error);
+      console.error("Scanner error:", error);
+      setCameraError("Scanner initialization failed. Try refreshing the page.");
     },
-    paused: isLoading || scanResult !== null,
+    paused: isLoading || scanResult !== null || !hasPermission,
     constraints: {
       video: {
         facingMode: "environment", // Use back camera on mobile
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
       },
     },
   });
@@ -74,6 +103,52 @@ const BarcodeScanner = ({ onFoodScanned, onManualEntry }) => {
     }
   };
 
+  // Show camera error if permission denied
+  if (cameraError && !hasPermission) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-gray-900">Scan Barcode</h2>
+          <p className="text-gray-600">Camera access required</p>
+        </div>
+
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <div className="flex items-start space-x-3 mb-4">
+            <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-red-800 font-medium mb-2">
+                Camera Access Denied
+              </p>
+              <p className="text-red-700 text-sm">{cameraError}</p>
+              <p className="text-red-700 text-sm mt-2">
+                To enable camera access:
+              </p>
+              <ul className="text-red-700 text-xs mt-1 ml-4 list-disc">
+                <li>Tap the lock/info icon in your browser's address bar</li>
+                <li>Enable camera permissions</li>
+                <li>Refresh this page</li>
+              </ul>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={requestCameraPermission}
+              className="bg-red-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-red-700 transition-colors text-sm"
+            >
+              Retry Permission
+            </button>
+            <button
+              onClick={onManualEntry}
+              className="bg-gray-600 text-white py-2 px-4 rounded-lg font-semibold hover:bg-gray-700 transition-colors text-sm"
+            >
+              Manual Entry
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="text-center">
@@ -84,12 +159,18 @@ const BarcodeScanner = ({ onFoodScanned, onManualEntry }) => {
       </div>
 
       {/* Scanner Video */}
-      {!scanResult && (
-        <div className="relative bg-black rounded-lg overflow-hidden">
+      {!scanResult && hasPermission && (
+        <div
+          className="relative bg-black rounded-lg overflow-hidden"
+          style={{ minHeight: "400px" }}
+        >
           <video
             ref={ref}
-            className="w-full h-auto"
-            style={{ minHeight: "300px" }}
+            className="w-full h-full object-cover"
+            style={{ minHeight: "400px" }}
+            playsInline
+            autoPlay
+            muted
           />
 
           {/* Scanner Overlay */}
@@ -115,7 +196,7 @@ const BarcodeScanner = ({ onFoodScanned, onManualEntry }) => {
       )}
 
       {/* Instructions */}
-      {!scanResult && !error && !isLoading && (
+      {!scanResult && !error && !isLoading && hasPermission && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <div className="flex items-start space-x-3">
             <Camera className="w-5 h-5 text-blue-600 mt-0.5" />
@@ -257,7 +338,7 @@ const BarcodeScanner = ({ onFoodScanned, onManualEntry }) => {
       )}
 
       {/* Action Buttons */}
-      {!scanResult && !isLoading && (
+      {!scanResult && !isLoading && hasPermission && (
         <div className="space-y-3">
           <button
             onClick={handleManualScan}
