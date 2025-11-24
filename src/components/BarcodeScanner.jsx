@@ -11,6 +11,7 @@ const BarcodeScanner = ({ onFoodScanned, onManualEntry }) => {
   const [lastScannedCode, setLastScannedCode] = useState("");
   const [cameraError, setCameraError] = useState("");
   const [hasPermission, setHasPermission] = useState(false);
+  const [editedData, setEditedData] = useState(null);
 
   // Request camera permission on mount
   useEffect(() => {
@@ -70,6 +71,7 @@ const BarcodeScanner = ({ onFoodScanned, onManualEntry }) => {
       const product = await searchOpenFoodFacts(barcode);
       console.log("✅ Product found:", product);
       setScanResult(product);
+      setEditedData(product);
     } catch (err) {
       console.error("❌ Product lookup error:", err);
       setError(
@@ -82,9 +84,9 @@ const BarcodeScanner = ({ onFoodScanned, onManualEntry }) => {
   };
 
   const handleAddFood = () => {
-    if (scanResult) {
-      console.log("✅ Adding food to log:", scanResult);
-      onFoodScanned(scanResult);
+    if (editedData) {
+      console.log("✅ Adding food to log:", editedData);
+      onFoodScanned(editedData);
     }
   };
 
@@ -92,6 +94,7 @@ const BarcodeScanner = ({ onFoodScanned, onManualEntry }) => {
     console.log("🔄 Resetting scanner");
     setError("");
     setScanResult(null);
+    setEditedData(null);
     setLastScannedCode("");
   };
 
@@ -101,6 +104,13 @@ const BarcodeScanner = ({ onFoodScanned, onManualEntry }) => {
       console.log("⌨️ Manual barcode entry:", code);
       handleBarcodeScanned(code.trim());
     }
+  };
+
+  const handleInputChange = (field, value) => {
+    setEditedData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
   };
 
   // Show camera error if permission denied
@@ -247,8 +257,8 @@ const BarcodeScanner = ({ onFoodScanned, onManualEntry }) => {
         </div>
       )}
 
-      {/* Scan Result */}
-      {scanResult && !isLoading && (
+      {/* Scan Result - Editable */}
+      {scanResult && !isLoading && editedData && (
         <div className="bg-white border-2 border-green-500 rounded-lg p-4 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
@@ -267,56 +277,98 @@ const BarcodeScanner = ({ onFoodScanned, onManualEntry }) => {
 
           <div className="space-y-3">
             <div className="bg-gray-50 p-3 rounded-lg">
-              <div className="text-sm text-gray-600">Product Name</div>
-              <div className="font-semibold text-gray-900">
-                {scanResult.name}
-              </div>
+              <label className="text-sm text-gray-600 block mb-1">
+                Product Name
+              </label>
+              <input
+                type="text"
+                value={editedData.name}
+                onChange={(e) => handleInputChange("name", e.target.value)}
+                className="w-full font-semibold text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              />
             </div>
 
-            {scanResult.brand && (
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <div className="text-sm text-gray-600">Brand</div>
-                <div className="font-semibold text-gray-900">
-                  {scanResult.brand}
-                </div>
-              </div>
-            )}
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <label className="text-sm text-gray-600 block mb-1">Brand</label>
+              <input
+                type="text"
+                value={editedData.brand || ""}
+                onChange={(e) => handleInputChange("brand", e.target.value)}
+                placeholder="Optional"
+                className="w-full font-semibold text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              />
+            </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-blue-50 p-3 rounded-lg text-center">
                 <div className="text-xs text-gray-600 mb-1">Calories</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {Math.round(scanResult.calories) || 0}
-                </div>
+                <input
+                  type="number"
+                  value={editedData.calories || 0}
+                  onChange={(e) =>
+                    handleInputChange(
+                      "calories",
+                      parseFloat(e.target.value) || 0
+                    )
+                  }
+                  className="text-2xl font-bold text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 w-full text-center focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
               </div>
               <div className="bg-green-50 p-3 rounded-lg text-center">
-                <div className="text-xs text-gray-600 mb-1">Protein</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {scanResult.protein?.toFixed(1) || 0}
-                  <span className="text-sm ml-1">g</span>
-                </div>
+                <div className="text-xs text-gray-600 mb-1">Protein (g)</div>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={editedData.protein || 0}
+                  onChange={(e) =>
+                    handleInputChange(
+                      "protein",
+                      parseFloat(e.target.value) || 0
+                    )
+                  }
+                  className="text-2xl font-bold text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 w-full text-center focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
               </div>
               <div className="bg-yellow-50 p-3 rounded-lg text-center">
-                <div className="text-xs text-gray-600 mb-1">Carbs</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {scanResult.carbs?.toFixed(1) || 0}
-                  <span className="text-sm ml-1">g</span>
-                </div>
+                <div className="text-xs text-gray-600 mb-1">Carbs (g)</div>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={editedData.carbs || 0}
+                  onChange={(e) =>
+                    handleInputChange("carbs", parseFloat(e.target.value) || 0)
+                  }
+                  className="text-2xl font-bold text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 w-full text-center focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                />
               </div>
               <div className="bg-orange-50 p-3 rounded-lg text-center">
-                <div className="text-xs text-gray-600 mb-1">Fats</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {scanResult.fats?.toFixed(1) || 0}
-                  <span className="text-sm ml-1">g</span>
-                </div>
+                <div className="text-xs text-gray-600 mb-1">Fats (g)</div>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={editedData.fats || 0}
+                  onChange={(e) =>
+                    handleInputChange("fats", parseFloat(e.target.value) || 0)
+                  }
+                  className="text-2xl font-bold text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 w-full text-center focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
               </div>
             </div>
 
-            {scanResult.servingSize && (
-              <div className="text-sm text-gray-600 text-center">
-                Per {scanResult.servingSize}
-              </div>
-            )}
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <label className="text-sm text-gray-600 block mb-1">
+                Serving Size
+              </label>
+              <input
+                type="text"
+                value={editedData.servingSize || ""}
+                onChange={(e) =>
+                  handleInputChange("servingSize", e.target.value)
+                }
+                placeholder="e.g., 100g"
+                className="w-full text-center font-medium text-gray-900 bg-white border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              />
+            </div>
           </div>
 
           <div className="flex space-x-3 pt-2">
