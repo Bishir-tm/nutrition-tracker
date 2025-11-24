@@ -218,7 +218,8 @@ const FoodLogger = ({ onFoodAdded }) => {
       return;
     }
 
-    await extractNutritionFromImage(file);
+    const result = await extractNutritionFromImage(file);
+    console.log("OCR Result:", result);
   };
 
   const handleClearImage = () => {
@@ -314,7 +315,7 @@ const FoodLogger = ({ onFoodAdded }) => {
           <div className="mt-3 flex items-center justify-center">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
             <span className="ml-2 text-blue-700 text-sm">
-              Analyzing image with AI...
+              Analyzing image ...
             </span>
           </div>
         )}
